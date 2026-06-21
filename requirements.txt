@@ -12,4 +12,4 @@ segno
 pillow
 
 librosa
-resampy
+resemblyzer
