@@ -4,8 +4,21 @@ def footer_home():
            # <img src='{logo_url}' style='max-height:25px' />
     st.markdown(f"""
         <div style="margin-top:2rem; display:flex; gap:6px; justify-content:center; items-align:center">
-        <p style="font-weight:bold; color:white;"> Created by Sehajpreet Singh ❤️ by Ghotra Firm's </p>  
+        <p style="font-weight:bold; color:white;"> Created by GHOTRA FIRM </p>  
  
         </div>
                 
                 """, unsafe_allow_html=True)
+    
+
+
+def footer_dashboard():
+    #logo_url = "https://i.ibb.co/4r5X1FY/apnacollege.png"
+           # <img src='{logo_url}' style='max-height:25px' />
+    st.markdown(f"""
+        <div style="margin-top:2rem; display:flex; gap:6px; justify-content:center; items-align:center">
+        <p style="font-weight:bold; color:black;"> Created by GHOTRA FIRM </p>  
+ 
+        </div>
+                
+                """, unsafe_allow_html=True)    
