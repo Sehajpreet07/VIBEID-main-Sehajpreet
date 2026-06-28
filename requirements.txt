@@ -11,5 +11,5 @@ bcrypt
 segno
 pillow
 
-librosa
-resemblyzer
+librosa>=0.10.2
+resemblyzer>=0.1.4
