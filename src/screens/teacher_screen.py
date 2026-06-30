@@ -13,7 +13,10 @@ from src.components.dialog_add_photo import add_photos_dialog
 from src.pipelines.face_pipeline import predict_attendance
 from src.components.dialog_attendance_results import attendance_result_dialog
 import numpy as np
-
+from src.database.db import (
+    get_teacher_subjects,
+    get_subject_students,
+)
 from datetime import datetime
 
 import pandas as pd
@@ -201,12 +204,12 @@ def teacher_tab_take_attendance():
 
 
 def teacher_tab_manage_subjects():
-    teacher_id = st.session_state.teacher_data['teacher_id']
+    teacher_id = st.session_state.teacher_data["teacher_id"]
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.header("Manage Subjects", width="stretch")
+        st.header("Manage Subjects")
 
     with col2:
         if st.button("Create New Subject", use_container_width=True):
@@ -226,15 +229,37 @@ def teacher_tab_manage_subjects():
         ]
 
         def share_btn(subject=sub, idx=i):
-            if st.button(
-                f"Share Code: {subject['name']}",
-                key=f"share_{subject['subject_id']}_{idx}",
-                icon=":material/share:",
-            ):
-                share_subject_dialog(
-                    subject_name=subject["name"],
-                    subject_code=subject["subject_code"],
-                )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button(
+                    "Share QR",
+                    key=f"share_{subject['subject_id']}_{idx}",
+                    icon=":material/share:",
+                    use_container_width=True,
+                ):
+                    share_subject_dialog(
+                        subject_name=subject["name"],
+                        subject_code=subject["subject_code"],
+                    )
+
+            with col2:
+                if st.button(
+                    "View Students",
+                    key=f"students_{subject['subject_id']}_{idx}",
+                    icon=":material/groups:",
+                    use_container_width=True,
+                ):
+                    students = get_subject_students(subject["subject_id"])
+
+                    if students:
+                        st.subheader(f"Students in {subject['name']}")
+
+                        for student in students:
+                            st.write(f"• {student['name']}")
+                    else:
+                        st.info("No students enrolled.")
 
             st.write("")
 
