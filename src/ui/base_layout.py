@@ -212,7 +212,7 @@ def style_background_dashboard():
         """
 <style>
 .stApp {
-    background: #f4f6fa !important;
+    background: #E76F51 !important;
 }
 /* Style text/headers for dashboard page to be dark navy for perfect readability */
 .stApp h1, .stApp h2, .stApp h3, .stApp h4 {
