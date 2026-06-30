@@ -212,37 +212,33 @@ def teacher_tab_manage_subjects():
         if st.button("Create New Subject", use_container_width=True):
             create_subject_dialog(teacher_id)
 
-    # Get all subjects for this teacher
     subjects = get_teacher_subjects(teacher_id)
 
     if not subjects:
         st.info("NO SUBJECTS FOUND. CREATE ONE ABOVE")
         return
 
-    # Display every subject
-    for sub in subjects:
+    for i, sub in enumerate(subjects):
 
         stats = [
             ("🫂", "Students", sub["total_students"]),
             ("🕰️", "Classes", sub["total_classes"]),
         ]
 
-        def share_btn(subject=sub):
-         if st.button(
-         f"Share Code: {subject['name']}",
-         key=f"share_{subject['subject_id']}",
-         icon=":material/share:",
-    ):
-          share_subject_dialog(
-            subject_name=subject["name"],
-            subject_code=subject["subject_code"],
-        )
+        def share_btn(subject=sub, idx=i):
+            if st.button(
+                f"Share Code: {subject['name']}",
+                key=f"share_{subject['subject_id']}_{idx}",
+                icon=":material/share:",
+            ):
+                share_subject_dialog(
+                    subject_name=subject["name"],
+                    subject_code=subject["subject_code"],
+                )
 
-         st.write("")
+            st.write("")
 
-         st.space()
-
-         subject_card(
+        subject_card(
             name=sub["name"],
             code=sub["subject_code"],
             section=sub["section"],
