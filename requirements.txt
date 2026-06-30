@@ -11,5 +11,7 @@ bcrypt
 segno
 pillow
 
-librosa>=0.10.2
-resemblyzer>=0.1.4
+librosa>=0.11.0
+numba>=0.61.0
+llvmlite>=0.44.0
+resemblyzer
