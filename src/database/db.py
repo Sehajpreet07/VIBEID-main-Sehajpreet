@@ -132,3 +132,79 @@ def get_subject_students(subject_id):
             students.append(row["students"])
 
     return students
+
+
+def calculate_particular_student_attendance(student_id, teacher_id=None):
+    """
+    Calculates attendance statistics and details for a particular student.
+    If teacher_id is provided, filters for subjects belonging to that teacher.
+    """
+    query = supabase.table('attendance_logs').select('*, subjects!inner(*), students(*)').eq('student_id', student_id)
+    if teacher_id:
+        query = query.eq('subjects.teacher_id', teacher_id)
+    
+    response = query.execute()
+    logs = response.data if response.data else []
+    
+    total_classes = len(logs)
+    present_count = sum(1 for log in logs if log.get('is_present'))
+    absent_count = total_classes - present_count
+    percentage = round((present_count / total_classes * 100), 2) if total_classes > 0 else 0.0
+    
+    subject_map = {}
+    detailed_logs = []
+    
+    for log in logs:
+        sub = log.get('subjects', {}) or {}
+        sub_id = sub.get('subject_id')
+        sub_name = sub.get('name', 'Unknown Subject')
+        sub_code = sub.get('subject_code', 'N/A')
+        is_present = bool(log.get('is_present', False))
+        ts = log.get('timestamp')
+        
+        if sub_id not in subject_map:
+            subject_map[sub_id] = {
+                'subject_id': sub_id,
+                'name': sub_name,
+                'code': sub_code,
+                'total': 0,
+                'present': 0,
+                'absent': 0
+            }
+            
+        subject_map[sub_id]['total'] += 1
+        if is_present:
+            subject_map[sub_id]['present'] += 1
+        else:
+            subject_map[sub_id]['absent'] += 1
+            
+        detailed_logs.append({
+            'timestamp': ts,
+            'subject_name': sub_name,
+            'subject_code': sub_code,
+            'is_present': is_present
+        })
+        
+    subject_breakdown = []
+    for s in subject_map.values():
+        s_pct = round((s['present'] / s['total'] * 100), 2) if s['total'] > 0 else 0.0
+        subject_breakdown.append({
+            'Subject Code': s['code'],
+            'Subject Name': s['name'],
+            'Total Classes': s['total'],
+            'Present': s['present'],
+            'Absent': s['absent'],
+            'Attendance (%)': f"{s_pct}%",
+            'raw_pct': s_pct
+        })
+        
+    return {
+        'student_id': student_id,
+        'total_classes': total_classes,
+        'present_count': present_count,
+        'absent_count': absent_count,
+        'percentage': percentage,
+        'subject_breakdown': subject_breakdown,
+        'detailed_logs': detailed_logs
+    }
+

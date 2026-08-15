@@ -27,6 +27,7 @@ from src.database.db import (
     get_teacher_subjects,
     get_attendance_for_teacher,
     get_subject_students,
+    calculate_particular_student_attendance,
 )
 from src.components.dialog_voice_attendance import voice_attendance_dialog
 def teacher_screen():
@@ -274,53 +275,6 @@ def teacher_tab_manage_subjects():
             stats=stats,
             footer_callback=share_btn,
         )
-# def teacher_tab_attendance_records():
-#     st.header('Attendance Records')
-
-#     teacher_id = st.session_state.teacher_data['teacher_id']
-
-#     records = get_attendance_for_teacher(teacher_id)
-
-#     if not records:
-#         return
-    
-#     data = []
-
-#     for r in records:
-#         ts = r.get('timestamp')
-
-#         data.append({
-#             "ts_group": ts.split(".")[0] if ts else None,
-#             "Time": datetime.fromisoformat(ts).strftime("%Y-%m-%d %I:%M %p") if ts else "N'A",
-#             "Subject": r['subjects']['name'],
-#             "Subject Code":r['subjects']['subject_code'],
-#             "is_present": bool(r.get('is_present', False))
-#         })
-
-
-#     df = pd.DataFrame(data)
-
-
-
-#     summary = (
-#         df.groupby(['ts_group', 'Time', 'Subject', 'Subject Code'])
-#         .agg(
-#             Present_Count = ('is_present', 'sum'),
-#             Total_Count =('is_present', 'count')
-#         ).reset_index()
-
-#     )
-
-#     summary['Attendance Stats'] = (
-#         "✅ " + summary['Present_Count'].astype(str) + " /"
-#         + summary['Total_Count'].astype(str) + ' Students'
-#     )
-
-#     display_df = ( summary.sort_values(by='ts_group' ,ascending=False)
-#                   [['Time', 'Subject', 'Subject Code', 'Attendance Stats']]
-#                   )
-    
-#     st.dataframe(display_df, width='stretch', hide_index=True)
 
 def teacher_tab_attendance_records():
     st.header('Attendance Records')
@@ -329,71 +283,132 @@ def teacher_tab_attendance_records():
     records = get_attendance_for_teacher(teacher_id)
     
     if not records:
+        st.info("No attendance records found.")
         return
         
     data = []
+    student_dict = {}
     for r in records:
         ts = r.get('timestamp')
+        std = r.get('students')
+        if std:
+            student_dict[std['student_id']] = std['name']
+
         data.append({
             "ts_group": ts.split(".")[0] if ts else None,
             "Time": datetime.fromisoformat(ts).strftime("%Y-%m-%d %I:%M %p") if ts else "N/A",
             "Subject": r['subjects']['name'],
             "Subject Code": r['subjects']['subject_code'],
-            "Student Name": r['students']['name'] if r.get('students') else "Unknown",
-            "Student ID": r['students']['student_id'] if r.get('students') else "-",
+            "Student Name": std['name'] if std else "Unknown",
+            "Student ID": std['student_id'] if std else "-",
             "is_present": bool(r.get('is_present', False))
         })
         
     df = pd.DataFrame(data)
-    
-    summary = (
-        df.groupby(['ts_group', 'Time', 'Subject', 'Subject Code'])
-        .agg(
-            Present_Count=('is_present', 'sum'),
-            Total_Count=('is_present', 'count')
-        ).reset_index()
+
+    rec_mode = st.radio(
+        "Attendance Record View Mode",
+        options=["📋 Class Session Records", "👤 Particular Student Attendance"],
+        horizontal=True,
+        label_visibility="collapsed"
     )
     
-    summary['Attendance Stats'] = (
-        "✅ " + summary['Present_Count'].astype(str) + " / " 
-        + summary['Total_Count'].astype(str) + " Students"
-    )
+    st.write("")
     
-    display_df = summary.sort_values(by='ts_group', ascending=False)[
-        ['Time', 'Subject', 'Subject Code', 'Attendance Stats']
-    ]
-    
-    # --- CHANGED HERE: Enable row selection capture on your main table ---
-    selection_event = st.dataframe(
-        display_df, 
-        width='stretch', 
-        hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row"
-    )
-    
-    # --- NEW CODE: Catch the row click event and show the students ---
-    if selection_event and selection_event.selection.rows:
-        selected_row_idx = selection_event.selection.rows[0]
-        
-        # Get metadata from the specific summary row that was clicked
-        sorted_summary = summary.sort_values(by='ts_group', ascending=False)
-        selected_ts = sorted_summary.iloc[selected_row_idx]['ts_group']
-        selected_code = sorted_summary.iloc[selected_row_idx]['Subject Code']
-        
-        st.write("---")
-        st.subheader(f"📋 Detailed Student Breakdown ({selected_code})")
-        
-        # Filter your raw 'df' to extract only students matching this session timestamp
-        filtered_students = df[(df['ts_group'] == selected_ts) & (df['Subject Code'] == selected_code)].copy()
-        
-        # Format a clean status string for the detailed table display
-        filtered_students['Status'] = filtered_students['is_present'].apply(
-            lambda x: "✅ Present" if x else "❌ Absent"
+    if rec_mode == "📋 Class Session Records":
+        summary = (
+            df.groupby(['ts_group', 'Time', 'Subject', 'Subject Code'])
+            .agg(
+                Present_Count=('is_present', 'sum'),
+                Total_Count=('is_present', 'count')
+            ).reset_index()
         )
         
-        breakdown_df = filtered_students[['Student ID', 'Student Name', 'Status']]
-        st.dataframe(breakdown_df, width='stretch', hide_index=True)
+        summary['Attendance Stats'] = (
+            "✅ " + summary['Present_Count'].astype(str) + " / " 
+            + summary['Total_Count'].astype(str) + " Students"
+        )
+        
+        display_df = summary.sort_values(by='ts_group', ascending=False)[
+            ['Time', 'Subject', 'Subject Code', 'Attendance Stats']
+        ]
+        
+        selection_event = st.dataframe(
+            display_df, 
+            width='stretch', 
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row"
+        )
+        
+        if selection_event and selection_event.selection.rows:
+            selected_row_idx = selection_event.selection.rows[0]
+            sorted_summary = summary.sort_values(by='ts_group', ascending=False)
+            selected_ts = sorted_summary.iloc[selected_row_idx]['ts_group']
+            selected_code = sorted_summary.iloc[selected_row_idx]['Subject Code']
+            
+            st.write("---")
+            st.subheader(f"📋 Detailed Student Breakdown ({selected_code})")
+            
+            filtered_students = df[(df['ts_group'] == selected_ts) & (df['Subject Code'] == selected_code)].copy()
+            filtered_students['Status'] = filtered_students['is_present'].apply(
+                lambda x: "✅ Present" if x else "❌ Absent"
+            )
+            
+            breakdown_df = filtered_students[['Student ID', 'Student Name', 'Status']]
+            st.dataframe(breakdown_df, width='stretch', hide_index=True)
+
+    else:
+        st.subheader("Calculate Particular Student Attendance")
+        
+        if not student_dict:
+            st.warning("No student data available in attendance records.")
+            return
+            
+        student_options = {f"{name} (ID: {sid})": sid for sid, name in student_dict.items()}
+        selected_label = st.selectbox("Select Student", options=list(student_options.keys()))
+        selected_student_id = student_options[selected_label]
+        
+        stats = calculate_particular_student_attendance(selected_student_id, teacher_id=teacher_id)
+        
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric("Total Classes", stats['total_classes'])
+        with m2:
+            st.metric("Classes Attended", stats['present_count'])
+        with m3:
+            st.metric("Classes Missed", stats['absent_count'])
+        with m4:
+            pct_val = stats['percentage']
+            delta_label = "Eligible (≥75%)" if pct_val >= 75 else "Low Attendance (<75%)"
+            st.metric("Attendance %", f"{pct_val}%", delta=delta_label)
+            
+        st.write("---")
+        
+        st.write("### 📚 Subject-wise Breakdown")
+        if stats['subject_breakdown']:
+            sub_df = pd.DataFrame(stats['subject_breakdown'])
+            display_sub_df = sub_df[['Subject Code', 'Subject Name', 'Total Classes', 'Present', 'Absent', 'Attendance (%)']]
+            st.dataframe(display_sub_df, width='stretch', hide_index=True)
+        else:
+            st.info("No subject breakdown data available.")
+            
+        st.write("### ⏱️ Attendance Session History")
+        if stats['detailed_logs']:
+            history_data = []
+            for log in stats['detailed_logs']:
+                ts = log.get('timestamp')
+                formatted_time = datetime.fromisoformat(ts).strftime("%Y-%m-%d %I:%M %p") if ts else "N/A"
+                history_data.append({
+                    "Date & Time": formatted_time,
+                    "Subject Code": log.get('subject_code'),
+                    "Subject": log.get('subject_name'),
+                    "Status": "✅ Present" if log.get('is_present') else "❌ Absent"
+                })
+            hist_df = pd.DataFrame(history_data)
+            st.dataframe(hist_df, width='stretch', hide_index=True)
+        else:
+            st.info("No session logs found for this student.")
 
 
 def login_teacher(username, password):
