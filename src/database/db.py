@@ -1,6 +1,6 @@
 from src.database.config import supabase
 import bcrypt
-
+from postgrest.exceptions import APIError
 
 
 def hash_pass(pwd):
@@ -16,9 +16,7 @@ def check_teacher_exists(username):
     return len(response.data) > 0 
 
 
-
 def create_teacher(username, password, name):
-
     data = { "username" : username, "password": hash_pass(password), "name": name}
     response = supabase.table("teachers").insert(data).execute()
     return response.data
@@ -37,10 +35,32 @@ def get_all_students():
     response = supabase.table('students').select("*").execute()
     return response.data
 
+
 def create_student(new_name, face_embedding=None, voice_embedding=None):
-    data = {'name': new_name, 'face_embedding':face_embedding, "voice_embedding": voice_embedding}
-    response = supabase.table('students').insert(data).execute()
-    return response.data
+    # Convert NumPy arrays to standard Python lists so Supabase can parse them as JSON
+    if hasattr(face_embedding, 'tolist'):
+        face_embedding = face_embedding.tolist()
+        
+    if hasattr(voice_embedding, 'tolist'):
+        voice_embedding = voice_embedding.tolist()
+
+    data = {
+        'name': new_name, 
+        'face_embedding': face_embedding, 
+        "voice_embedding": voice_embedding
+    }
+    
+    # Try inserting and catch APIError to reveal hidden details in Streamlit Cloud logs
+    try:
+        response = supabase.table('students').insert(data).execute()
+        return response.data
+    except APIError as e:
+        print(f"\n--- SUPABASE INSERT ERROR ---")
+        print(f"Message: {e.message}")
+        print(f"Details: {e.details}")
+        print(f"Hint: {getattr(e, 'hint', 'None')}")
+        print(f"-----------------------------\n")
+        raise e
 
 
 def create_subject(subject_code, name, section, teacher_id):
@@ -48,10 +68,10 @@ def create_subject(subject_code, name, section, teacher_id):
     response = supabase.table("subjects").insert(data).execute()
     return response.data
 
+
 def get_teacher_subjects(teacher_id):
     response = supabase.table('subjects').select("*, subject_students(count), attendance_logs(timestamp)").eq("teacher_id", teacher_id).execute()
     subjects = response.data
-
 
     for sub in subjects:
         sub['total_students'] = sub.get("subject_students", [{}])[0].get('count', 0) if sub.get('subject_students') else 0
@@ -59,23 +79,21 @@ def get_teacher_subjects(teacher_id):
         unique_sessions = len(set(log['timestamp'] for log in attendance))
         sub['total_classes'] = unique_sessions
 
-
         sub.pop('subject_student', None)
         sub.pop('attendance_logs', None)
 
     return subjects
 
 
-def  enroll_student_to_subject(student_id, subject_id):
+def enroll_student_to_subject(student_id, subject_id):
     data = {'student_id': student_id, "subject_id": subject_id}
-    response= supabase.table('subject_students').insert(data).execute()
+    response = supabase.table('subject_students').insert(data).execute()
     return response.data
 
 
-def  unenroll_student_to_subject(student_id, subject_id):
-    response= supabase.table('subject_students').delete().eq('student_id', student_id).eq('subject_id', subject_id).execute()
+def unenroll_student_to_subject(student_id, subject_id):
+    response = supabase.table('subject_students').delete().eq('student_id', student_id).eq('subject_id', subject_id).execute()
     return response.data
-
 
 
 def get_student_subjects(student_id):
@@ -92,10 +110,12 @@ def create_attendance(logs):
     response = supabase.table('attendance_logs').insert(logs).execute()
     return response.data
 
+
 def get_attendance_for_teacher(teacher_id):
     # Added , students(*) to the select statement
     response = supabase.table('attendance_logs').select("*, subjects!inner(*), students(*)").eq('subjects.teacher_id', teacher_id).execute()
     return response.data
+
 
 def get_subject_students(subject_id):
     result = (
