@@ -306,6 +306,15 @@ def teacher_tab_attendance_records():
         
     df = pd.DataFrame(data)
 
+    # Pre-calculate each student's overall attendance % across all records for this teacher
+    student_overall_stats = {}
+    for s_id in student_dict.keys():
+        s_logs = [r for r in records if r.get('students') and r['students']['student_id'] == s_id]
+        s_total = len(s_logs)
+        s_present = sum(1 for r in s_logs if r.get('is_present'))
+        s_pct = round((s_present / s_total * 100), 1) if s_total > 0 else 0.0
+        student_overall_stats[s_id] = f"{s_pct}% ({s_present}/{s_total})"
+
     rec_mode = st.radio(
         "Attendance Record View Mode",
         options=["📋 Class Session Records", "👤 Particular Student Attendance"],
@@ -324,13 +333,15 @@ def teacher_tab_attendance_records():
             ).reset_index()
         )
         
+        summary['Pct_Val'] = (summary['Present_Count'] / summary['Total_Count'] * 100).round(1)
+        summary['Attendance %'] = summary['Pct_Val'].astype(str) + "%"
         summary['Attendance Stats'] = (
             "✅ " + summary['Present_Count'].astype(str) + " / " 
-            + summary['Total_Count'].astype(str) + " Students"
+            + summary['Total_Count'].astype(str) + " (" + summary['Attendance %'] + ")"
         )
         
         display_df = summary.sort_values(by='ts_group', ascending=False)[
-            ['Time', 'Subject', 'Subject Code', 'Attendance Stats']
+            ['Time', 'Subject', 'Subject Code', 'Attendance Stats', 'Attendance %']
         ]
         
         selection_event = st.dataframe(
@@ -351,22 +362,25 @@ def teacher_tab_attendance_records():
             st.subheader(f"📋 Detailed Student Breakdown ({selected_code})")
             
             filtered_students = df[(df['ts_group'] == selected_ts) & (df['Subject Code'] == selected_code)].copy()
-            filtered_students['Status'] = filtered_students['is_present'].apply(
+            filtered_students['Session Status'] = filtered_students['is_present'].apply(
                 lambda x: "✅ Present" if x else "❌ Absent"
             )
+            filtered_students['Student Overall Attendance %'] = filtered_students['Student ID'].apply(
+                lambda sid: student_overall_stats.get(sid, "N/A")
+            )
             
-            breakdown_df = filtered_students[['Student ID', 'Student Name', 'Status']]
+            breakdown_df = filtered_students[['Student ID', 'Student Name', 'Session Status', 'Student Overall Attendance %']]
             st.dataframe(breakdown_df, width='stretch', hide_index=True)
 
     else:
-        st.subheader("Calculate Particular Student Attendance")
+        st.subheader("🔍 Calculate Particular Student Attendance")
         
         if not student_dict:
             st.warning("No student data available in attendance records.")
             return
             
         student_options = {f"{name} (ID: {sid})": sid for sid, name in student_dict.items()}
-        selected_label = st.selectbox("Select Student", options=list(student_options.keys()))
+        selected_label = st.selectbox("Select Student to Calculate Attendance", options=list(student_options.keys()))
         selected_student_id = student_options[selected_label]
         
         stats = calculate_particular_student_attendance(selected_student_id, teacher_id=teacher_id)
