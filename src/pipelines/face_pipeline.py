@@ -26,7 +26,7 @@ def load_dlib_models():
 
 def get_face_embeddings(image_np):
     detector,sp,facerec=load_dlib_models()
-    faces = detector(image_np,3)
+    faces = detector(image_np, 0)
 
     encodings=[]
 
