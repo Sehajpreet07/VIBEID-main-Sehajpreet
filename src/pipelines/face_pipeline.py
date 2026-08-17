@@ -24,19 +24,32 @@ def load_dlib_models():
 
     return detector,sp,facerec
 
+from PIL import Image
+
 def get_face_embeddings(image_np):
-    detector,sp,facerec=load_dlib_models()
-    faces = detector(image_np, 0)
+    detector, sp, facerec = load_dlib_models()
+    
+    # Resize image if it's too large to prevent OOM while allowing upsampling
+    img = Image.fromarray(image_np)
+    MAX_WIDTH = 1000
+    if img.width > MAX_WIDTH:
+        ratio = MAX_WIDTH / img.width
+        new_height = int(img.height * ratio)
+        # Use Image.BILINEAR for compatibility
+        img = img.resize((MAX_WIDTH, new_height), Image.BILINEAR)
+        
+    process_img = np.array(img)
 
-    encodings=[]
+    # Now we can safely use upsample=2 to find small faces in the classroom
+    faces = detector(process_img, 2)
 
+    encodings = []
 
     for face in faces:
-        shape=sp(image_np,face)
-        face_descriptor=facerec.compute_face_descriptor(image_np,shape,1)
+        shape = sp(process_img, face)
+        face_descriptor = facerec.compute_face_descriptor(process_img, shape, 1)
 
         encodings.append(np.array(face_descriptor))
-
 
     return encodings
 @st.cache_resource
